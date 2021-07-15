@@ -6,7 +6,7 @@ inThisBuild(
   Seq(
     organization := "com.owlandrews",
     organizationName := "owlandrews",
-    version := "0.0.1",
+    version := "0.0.2",
     startYear := Some(2021),
     licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0")),
     scalaVersion := "2.12.10",

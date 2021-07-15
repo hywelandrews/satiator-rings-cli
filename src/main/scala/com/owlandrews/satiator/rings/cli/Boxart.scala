@@ -41,11 +41,13 @@ object Boxart {
       case png if png.getName.endsWith(".png")    => png.getName  -> boxartDefault.open(png)
     }.toMap
 
+  def exists(path: Path): Boolean = binPathToBoxFile(path).exists()
+
   def resize(image: Image, region: String): Option[Image] =
     region match {
-      case "J"                                                      => image.getScaledInstance(80, 80, Image.SCALE_DEFAULT).some
-      case "U" | "T"                                                => image.getScaledInstance(64, 100, Image.SCALE_DEFAULT).some
-      case universal if CDImages.universalAreaCode.contains(region) =>
+      case "J"                                              => image.getScaledInstance(80, 80, Image.SCALE_DEFAULT).some
+      case "U" | "T"                                        => image.getScaledInstance(64, 100, Image.SCALE_DEFAULT).some
+      case _ if CDImages.universalAreaCode.contains(region) =>
         // Todo: we should re validate area code somehow (is that possible?), assume Japanese cover is multi region
         image.getScaledInstance(80, 80, Image.SCALE_DEFAULT).some
       case _ => Option.empty[Image]
@@ -63,7 +65,7 @@ object Boxart {
     bGr.dispose()
 
     // Return the buffered image in TGA format
-    try ImageIO.write(bImage, "TGA", new File(path.getParent.toFile, "BOX.TGA"))
+    try ImageIO.write(bImage, "TGA", binPathToBoxFile(path))
     catch {
       case e: Throwable => println(e); false
     }
@@ -83,4 +85,6 @@ object Boxart {
           }
     res.flatten
   }
+
+  private def binPathToBoxFile(p: Path) = new File(p.getParent.toFile, "BOX.TGA")
 }

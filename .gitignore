@@ -41,3 +41,6 @@ snapshots
 # Metals
 .metals
 .bloop
+
+# Release packages
+satiator-rings-cli.zip

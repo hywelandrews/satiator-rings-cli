@@ -7,9 +7,9 @@ This tool is useful if:
 2) You are using the [Satiator Rings Menu](http://files-ds-scene.net/retrohead/satiator/) instead of the official Satiator menu
 3) You want to add boxart using the command line (maybe because you are not running Windows)
 
-# Usage #
+## Usage ##
 
-Requires > Java 8
+Requires >= Java 8
 
 Create a directory to hold all boxart, with filenames as the Sega Saturn game id (i.e `T-12345.jpg`), 
 a set exists on the [Internet Archive](https://archive.org/details/sega_saturn_covers) for convenience
@@ -19,7 +19,7 @@ $ unzip satiator-rings-cli.zip
 $ ./satiator-rings upload --satiator /Volumes/SATIATOR --covers /path/to/covers
 ```
 
-# What does it do? #
+## What does it do? ##
 
 satiator-rings-cli scans your SATIATOR volume and matches cover art based on the game Id and region, it will then convert 
 images into the correct format and size and places the TGA files in the correct location on your SD card.

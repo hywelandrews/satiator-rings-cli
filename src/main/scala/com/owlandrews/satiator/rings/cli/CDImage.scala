@@ -2,10 +2,10 @@ package com.owlandrews.satiator.rings.cli
 
 import cats.effect.IO
 
-import java.io.{ File, IOException }
+import java.io.File
 import java.nio.channels.Channels
 import java.nio.file.{ Files, Path }
-import scala.util.Try
+import scala.util.{ Failure, Success, Try }
 
 case class CDImage(path: Path, ipBin: IpBin)
 
@@ -21,34 +21,38 @@ case class IpBin(
 }
 
 trait CDImageOps {
-  def open(file: File): CDImage
+  def open(file: File): Try[CDImage]
 }
 
 class CDImageBin extends CDImageOps {
-  override def open(file: File): CDImage = {
+
+  private val validHardwareId = "SEGA SEGASATURN"
+
+  override def open(file: File): Try[CDImage] = {
     val path = file.toPath
 
-    val load = Try(Files.newByteChannel(path))
+    val load = Try(Files.newByteChannel(path)).map(Channels.newInputStream)
 
-    val mightBeLoaded = load
-      .getOrElse(throw new IOException(s"Unable to load file: $path"))
+    val possibleCdImage = for {
+      inputFile <- load
+      imageData     = Iterator.continually(inputFile.read()).take(256).toArray
+      hardwareId    = imageData.slice(16, 32).map(_.toChar).mkString.trim
+      makerId       = imageData.slice(33, 47).map(_.toChar).mkString.trim
+      productNumber = imageData.slice(48, 58).map(_.toChar).mkString.trim
+      version       = imageData.slice(59, 64).map(_.toChar).mkString.trim
+      area          = imageData.slice(80, 90).map(_.toChar).mkString.trim
+      _             = inputFile.close()
+    } yield CDImage(path, IpBin(hardwareId, makerId, productNumber, version, area))
 
-    val in = Channels.newInputStream(mightBeLoaded)
-
-    val imageData = Iterator
-      .continually(in.read())
-      .take(256) // do whatever you want with each byte
-      .toArray
-
-    val hardwareId    = imageData.slice(16, 31).map(_.toChar).mkString.trim
-    val makerId       = imageData.slice(32, 47).map(_.toChar).mkString.trim
-    val productNumber = imageData.slice(48, 58).map(_.toChar).mkString.trim
-    val version       = imageData.slice(59, 64).map(_.toChar).mkString.trim
-    val area          = imageData.slice(80, 90).map(_.toChar).mkString.trim
-
-    mightBeLoaded.close()
-
-    CDImage(path, IpBin(hardwareId, makerId, productNumber, version, area))
+    possibleCdImage.flatMap { in =>
+      if (in.ipBin.hardwareId == validHardwareId) Success(in)
+      else
+        Failure(
+          new IllegalArgumentException(
+            s"Invalid sega saturn binary image, found incorrect hardware Id: ${in.ipBin.hardwareId}"
+          )
+        )
+    }
   }
 }
 
@@ -69,9 +73,18 @@ object CDImages {
         App.logger
           .info(s"Found ${files.length} images, loading IP.BIN...")
       )
-    } yield files.par.collect {
-      case bin if bin.getName.endsWith(".bin") => cdImageBin.open(bin)
-    }.toList
+    } yield files.par
+      .collect {
+        case bin if bin.getName.endsWith(".bin") =>
+          (cdImageBin.open(bin) match {
+            case s @ Success(_) => s
+            case x @ Failure(error) =>
+              App.logger.warn(s"Unable to open file ${bin.getName} ${error.getMessage}")
+              x
+          }).toOption
+      }
+      .toList
+      .flatten
 
   def getFiles(dir: File, fileList: List[File]): List[File] = {
     val tmp = Option(dir.listFiles()).toList.flatten

@@ -40,17 +40,18 @@ object App
   val logger: Logger = Logger("satiator-rings-cli")
 
   override def main: Opts[IO[ExitCode]] =
-    uploadOpts.map { case Targets(Some(a), Some(b)) =>
+    uploadOpts.map { case Targets(Some(satiator), Some(covers)) =>
       // Open CD Image and read IP.BIN (only .bin / .cue I guess for now)
       // From IP.BIN get game id & region
 
-      val loadCDsIO = CDImages.open(a)
+      val loadCDsIO = CDImages.open(satiator)
 
-      // Check if we have a image for this game id
-      val loadImagesIO = Boxart.open(b)
+      // Load all cover art from the provided folder
+      val loadImagesIO = Boxart.open(covers)
 
       (for {
-        loadCDs    <- loadCDsIO
+        // Filter out anything that already has box art
+        loadCDs    <- loadCDsIO.map(_.filter(cdImage => !Boxart.exists(cdImage.path)))
         loadImages <- loadImagesIO
       } yield loadCDs.par.map { cdImage =>
         val maybeBoxart = loadImages.find { case (name, _) =>
@@ -68,9 +69,9 @@ object App
             // If we do - convert to TGA
             // Upload to path (same as .cue / .bin)
             if (Boxart.save(sizedImage, cdImage.path))
-              cdImage.path.toString -> s"Successfully applied cover art for $name"
+              cdImage.path.toString -> s"Successfully applied cover art using $name"
             else
-              cdImage.path.toString -> "Unable to apply reformatting in TGA - contact satiator-rings-boxart dev"
+              cdImage.path.toString -> "Unable to apply reformatting in TGA - contact satiator-rings-cli dev"
           }
         }
 
@@ -80,10 +81,11 @@ object App
 
         val message = maybeValid.toLeft(
           if (maybeBoxart.isEmpty)
-            cdImage.path.toString -> s"No boxart could be found for product id ${cdImage.ipBin.productNumber}"
+            cdImage.path.toString -> s"No box art could be found for product id ${cdImage.ipBin.productNumber}"
           else if (maybeValid.isEmpty)
-            cdImage.path.toString    -> s"Invalid area code cannot apply image transformation ${cdImage.ipBin.area}"
-          else cdImage.path.toString -> s"Unhandled error processing ${cdImage.ipBin.productNumber}"
+            cdImage.path.toString -> s"Invalid area code  ${cdImage.ipBin.area} cannot apply image transformation"
+          else
+            cdImage.path.toString -> s"Unhandled error processing ${cdImage.ipBin.productNumber} - contact satiator-rings-cli dev"
         )
 
         message match {
