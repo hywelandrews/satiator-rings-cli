@@ -2,28 +2,29 @@ package com.owlandrews.satiator.rings.cli
 
 import cats.effect.IO
 import cats.implicits._
+import com.twelvemonkeys.image.ResampleOp
 
 import java.awt.Image
+import java.awt.image.BufferedImage
 import java.io.File
 import java.nio.file.Path
 import javax.imageio.ImageIO
 
-trait Boxart {
+trait BoxArt {
   def open(file: File): Image
 }
 
-class BoxartDefault extends Boxart {
+class BoxArtDefault extends BoxArt {
   override def open(file: File): Image = {
     import javax.imageio.ImageIO
     ImageIO.read(file)
   }
 }
 
-object Boxart {
+object BoxArt {
 
   private val validImageFormats = List(".jpg", ".jpeg", ".png", ".tga")
-  private val boxartDefault     = new BoxartDefault
-
+  private val boxArtDefault     = new BoxArtDefault
   def open(folder: String): IO[Map[String, Image]] =
     for {
       _ <- IO(
@@ -36,20 +37,20 @@ object Boxart {
           .info(s"Found ${files.length} covers, loading in formats JPG / JPEG / PNG")
       )
     } yield files.collect {
-      case jpg if jpg.getName.endsWith(".jpg")    => jpg.getName  -> boxartDefault.open(jpg)
-      case jpeg if jpeg.getName.endsWith(".jpeg") => jpeg.getName -> boxartDefault.open(jpeg)
-      case png if png.getName.endsWith(".png")    => png.getName  -> boxartDefault.open(png)
+      case jpg if jpg.getName.endsWith(".jpg")    => jpg.getName  -> boxArtDefault.open(jpg)
+      case jpeg if jpeg.getName.endsWith(".jpeg") => jpeg.getName -> boxArtDefault.open(jpeg)
+      case png if png.getName.endsWith(".png")    => png.getName  -> boxArtDefault.open(png)
     }.toMap
 
   def exists(path: Path): Boolean = binPathToBoxFile(path).exists()
 
   def resize(image: Image, region: String): Option[Image] =
     region match {
-      case "J"                                              => image.getScaledInstance(80, 80, Image.SCALE_DEFAULT).some
-      case "U" | "T"                                        => image.getScaledInstance(64, 100, Image.SCALE_DEFAULT).some
+      case "J"                                              => scaleImage(image, 80, 80).some
+      case "U" | "T"                                        => scaleImage(image, 64, 100).some
       case _ if CDImages.universalAreaCode.contains(region) =>
         // Todo: we should re validate area code somehow (is that possible?), assume Japanese cover is multi region
-        image.getScaledInstance(80, 80, Image.SCALE_DEFAULT).some
+        scaleImage(image, 80, 80).some
       case _ => Option.empty[Image]
     }
 
@@ -84,6 +85,11 @@ object Boxart {
             fileList
           }
     res.flatten
+  }
+
+  private def scaleImage(image: Image, width: Int, height: Int): Image = {
+    val resizeOp = new ResampleOp(width, height, ResampleOp.FILTER_LANCZOS)
+    resizeOp.filter(image.asInstanceOf[BufferedImage], null)
   }
 
   private def binPathToBoxFile(p: Path) = new File(p.getParent.toFile, "BOX.TGA")

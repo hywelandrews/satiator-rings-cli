@@ -73,18 +73,15 @@ object CDImages {
         App.logger
           .info(s"Found ${files.length} images, loading IP.BIN...")
       )
-    } yield files.par
-      .collect {
-        case bin if bin.getName.endsWith(".bin") =>
-          (cdImageBin.open(bin) match {
-            case s @ Success(_) => s
-            case x @ Failure(error) =>
-              App.logger.warn(s"Unable to open file ${bin.getName} ${error.getMessage}")
-              x
-          }).toOption
-      }
-      .toList
-      .flatten
+    } yield files.collect {
+      case bin if bin.getName.endsWith(".bin") =>
+        (cdImageBin.open(bin) match {
+          case s @ Success(_) => s
+          case x @ Failure(error) =>
+            App.logger.warn(s"Unable to open file ${bin.getName} ${error.getMessage}")
+            x
+        }).toOption
+    }.flatten
 
   def getFiles(dir: File, fileList: List[File]): List[File] = {
     val tmp = Option(dir.listFiles()).toList.flatten

@@ -5,6 +5,7 @@ import cats.implicits._
 import com.monovore.decline.effect.CommandIOApp
 import com.monovore.decline.Opts
 import com.typesafe.scalalogging.Logger
+import org.slf4j.LoggerFactory
 
 case class Targets(satiator: Option[String], covers: Option[String])
 
@@ -14,7 +15,7 @@ object App
       header = "Setup the satiator rings menu from the command line"
     ) {
 
-  val satiatorPathOpts: Opts[Option[String]] =
+  private val satiatorPathOpts: Opts[Option[String]] =
     Opts
       .option[String](
         metavar = "path",
@@ -23,7 +24,7 @@ object App
       )
       .orNone
 
-  val coversPath: Opts[Option[String]] =
+  private val coversPath: Opts[Option[String]] =
     Opts
       .option[String](
         metavar = "path",
@@ -32,12 +33,12 @@ object App
       )
       .orNone
 
-  val uploadOpts: Opts[Targets] =
+  private val uploadOpts: Opts[Targets] =
     Opts.subcommand("upload", "Adds boxart to satiator") {
       (satiatorPathOpts, coversPath).mapN(Targets)
     }
 
-  val logger: Logger = Logger("satiator-rings-cli")
+  val logger: Logger = Logger(LoggerFactory.getLogger(this.getClass))
 
   override def main: Opts[IO[ExitCode]] =
     uploadOpts.map { case Targets(Some(satiator), Some(covers)) =>
@@ -47,13 +48,13 @@ object App
       val loadCDsIO = CDImages.open(satiator)
 
       // Load all cover art from the provided folder
-      val loadImagesIO = Boxart.open(covers)
+      val loadImagesIO = BoxArt.open(covers)
 
       (for {
         // Filter out anything that already has box art
-        loadCDs    <- loadCDsIO.map(_.filter(cdImage => !Boxart.exists(cdImage.path)))
+        loadCDs    <- loadCDsIO.map(_.filter(cdImage => !BoxArt.exists(cdImage.path)))
         loadImages <- loadImagesIO
-      } yield loadCDs.par.map { cdImage =>
+      } yield loadCDs.map { cdImage =>
         val maybeBoxart = loadImages.find { case (name, _) =>
           cdImage.ipBin.productNumber.nonEmpty && name.contains(cdImage.ipBin.productNumber)
         } orElse loadImages.find { case (name, _) =>
@@ -65,10 +66,10 @@ object App
 
         val maybeValid = maybeBoxart.flatMap { case (name, image) =>
           // Resize based on region
-          Boxart.resize(image, cdImage.ipBin.area).map { sizedImage =>
+          BoxArt.resize(image, cdImage.ipBin.area).map { sizedImage =>
             // If we do - convert to TGA
             // Upload to path (same as .cue / .bin)
-            if (Boxart.save(sizedImage, cdImage.path))
+            if (BoxArt.save(sizedImage, cdImage.path))
               cdImage.path.toString -> s"Successfully applied cover art using $name"
             else
               cdImage.path.toString -> "Unable to apply reformatting in TGA - contact satiator-rings-cli dev"
